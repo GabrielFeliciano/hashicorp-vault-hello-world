@@ -10,9 +10,12 @@ export enum Env {
 
 @Injectable()
 export class EnvService implements OnModuleInit {
-  client: vault.client;
   addr = process.env.ADDRESS;
-  token = process.env.TOKEN;
+  username = process.env.VAULT_USERNAME;
+  password = process.env.VAULT_PASSWORD;
+
+  client: vault.client;
+  token: string;
   secrets: Record<string, string>;
 
   constructor(
@@ -21,6 +24,31 @@ export class EnvService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    await this.login();
+    await this.fetchSecrets();
+  }
+
+  async login() {
+    interface BodyGet {
+      auth: {
+        client_token: string;
+      };
+    }
+
+    const result = this.httpService.post<BodyGet>(
+      `${this.addr}/v1/auth/userpass/login/${this.username}`,
+      { password: this.password },
+      {
+        headers: { 'X-Vault-Namespace': 'admin' },
+        validateStatus: () => true,
+      },
+    );
+    const response = await firstValueFrom(result);
+
+    this.token = response.data?.auth?.client_token ?? '';
+  }
+
+  async fetchSecrets() {
     interface BodyGet {
       data: {
         data: Record<string, string>;
